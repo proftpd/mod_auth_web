@@ -1,6 +1,6 @@
 /*
  * mod_auth_web - URL-based authentication for ProFTPD
- * Copyright (c) 2006, John Morrissey <jwm@horde.net>
+ * Copyright (c) 2006-7, John Morrissey <jwm@horde.net>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,17 +17,13 @@
  * 51 Franklin Street, 5th Floor, Boston, MA 02110-1301, USA.
  */
 
-/* Docs coming soon (I hope)! In the mean time, here is a sample configuration
- * to authenticate Yahoo users:
+/* CHANGES:
+ * v1.0 (17 Feb 2007):
+ * - Initial release.
  *
- *   AuthWebUserRegex @yahoo.com$
- *   AuthWebURL https://login.yahoo.com/config/login?
- *   AuthWebUsernameParamName login
- *   AuthWebPasswordParamName passwd
- *   AuthWebLocalUser yuser
- *   AuthWebLoginFailedString "Invalid ID or password."
- *   AuthWebRequireHeader "HTTP/1.1 302 Found"
- *   AuthWebRequireHeader "Location: https://login.yahoo.com/config/verify?.done=http%3a//my.yahoo.com"
+ * v1.1 (9 June 2007):
+ * - URL-encode usernames and passwords when submitting them to the remote
+ *   web server, removing the character restrictions previously in place.
  */
 
 #include <pwd.h>
@@ -41,7 +37,7 @@
 #include "conf.h"
 #include "privs.h"
 
-#define MOD_AUTH_WEB_VERSION  "mod_auth_web/1.0"
+#define MOD_AUTH_WEB_VERSION  "mod_auth_web/1.1"
 
 /* Config values */
 static char *local_user;
@@ -139,12 +135,53 @@ get_response_data(const void *buffer, const size_t size,
 	return size * nmemb;
 }
 
+char *
+urlencode(pool *p, const char *str)
+{
+	char *escaped, *check, *track;
+	unsigned int num_to_escape;
+
+	num_to_escape = 0;
+	check = (char *) str;
+	while (*check) {
+		if (! (isalnum(*check) || *check == '-' || *check == '_' ||
+		       *check == '.' || *check == ' ')) {
+
+			++num_to_escape;
+		}
+		++check;
+	}
+
+	escaped = pcalloc(p, strlen(str) + (2 * num_to_escape) + 1);
+
+	check = (char *) str;
+	track = (char *) escaped;
+	while (*check) {
+		if (isalnum(*check) || *check == '-' || *check == '_' || *check == '.') {
+			*track = *check;
+		} else if (*check == ' ') {
+			*track = '+';
+		} else {
+			char in_hex[3];
+			snprintf(in_hex, 3, "%02x", *check);
+			*track++ = '%';
+			*track++ = in_hex[0];
+			*track   = in_hex[1];
+		}
+		++track;
+		++check;
+	}
+	*track = 0;
+
+	return escaped;
+}
+
 MODRET
 handle_auth_web_auth(cmd_rec *cmd)
 {
 	const char *username = cmd->argv[0];
 	const char *password = cmd->argv[1];
-	char *post_data, *check;
+	char *escaped_username, *escaped_password, *post_data;
 	unsigned int post_data_len;
 	struct curl_slist *headers = NULL;
 	CURL *curl_handle;
@@ -161,25 +198,8 @@ handle_auth_web_auth(cmd_rec *cmd)
 		}
 	}
 
-	/* Ensure some sort of sanity; we shouldn't allow arbitrary injection to
-	 * our POST data.
-	 */
-	check = (char *) username;
-	while (*check) {
-		if (! (isalnum(*check) || *check == '_' || *check == '.' || *check == '@')) {
-			pr_log_pri(PR_LOG_ERR, MOD_AUTH_WEB_VERSION ": invalid character in username: '%c'", *check);
-			return DECLINED(cmd);
-		}
-		++check;
-	}
-	check = (char *) password;
-	while (*check) {
-		if (! (isalnum(*check) || *check == '_' || *check == '.')) {
-			pr_log_pri(PR_LOG_ERR, MOD_AUTH_WEB_VERSION ": invalid character in password: '%c'", *check);
-			return DECLINED(cmd);
-		}
-		++check;
-	}
+	escaped_username = urlencode(cmd->tmp_pool, username);
+	escaped_password = urlencode(cmd->tmp_pool, password);
 
 	curl_handle = curl_easy_init();
 	curl_easy_setopt(curl_handle, CURLOPT_URL, url);
@@ -192,16 +212,17 @@ handle_auth_web_auth(cmd_rec *cmd)
 	headers = curl_slist_append(headers, pstrcat(cmd->tmp_pool, "User-Agent: ", MOD_AUTH_WEB_VERSION, NULL));
 	curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, headers);
 
-	/* user_param_name=username&pass_param_name=password\0 */
+	/* user_param_name=escaped_username&pass_param_name=escaped_password\0 */
 	post_data_len =
-		strlen(user_param_name) + 1 + strlen(username) + 1 +
-		strlen(pass_param_name) + 1 + strlen(password) + 1;
+		strlen(user_param_name) + 1 + strlen(escaped_username) + 1 +
+		strlen(pass_param_name) + 1 + strlen(escaped_password) + 1;
 	post_data = pcalloc(session.pool, post_data_len);
 	if (!post_data) {
 		return DECLINED(cmd);
 	}
 	snprintf(post_data, post_data_len, "%s=%s&%s=%s",
-		user_param_name, username, pass_param_name, password);
+		user_param_name, escaped_username,
+		pass_param_name, escaped_password);
 	curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, post_data);
 
 	pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": calling URL %s with POST data %s", url, post_data);
