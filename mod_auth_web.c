@@ -30,11 +30,6 @@
  *   (will likely be in ProFTPD 1.3.4 release candidates and later).
  */
 
-#include <pwd.h>
-#include <regex.h>
-#include <stdio.h>
-#include <string.h>
-
 /* $Libraries: -lcurl$ */
 #include <curl/curl.h>
 
