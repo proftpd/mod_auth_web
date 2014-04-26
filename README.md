@@ -127,3 +127,22 @@ directives may be used, and all configured headers must be present in the
 web server's response for authentication to succeed.
 
 See also: `AuthWebLoginFailedString`
+
+
+History
+=======
+
+* v1.1.2 (26 Apr 2014)
+ * Emit a useful error message on curl failure.
+ * Use proftpd's regex type and supporting functions.
+
+* v1.1.1 (17 Mar 2011)
+ * Sync with ProFTPD pr_regexp_alloc() API change after Bug #3609
+   (will likely be in ProFTPD 1.3.4 release candidates and later).
+
+* v1.1 (9 June 2007)
+ * URL-encode usernames and passwords when submitting them to the remote
+   web server, removing the character restrictions previously in place.
+
+* v1.0 (17 Feb 2007)
+ * Initial release.

@@ -17,26 +17,13 @@
  * 51 Franklin Street, 5th Floor, Boston, MA 02110-1301, USA.
  */
 
-/* CHANGES:
- * v1.0 (17 Feb 2007):
- * - Initial release.
- *
- * v1.1 (9 June 2007):
- * - URL-encode usernames and passwords when submitting them to the remote
- *   web server, removing the character restrictions previously in place.
- *
- * v1.1.1 (17 Mar 2011):
- * - Sync with ProFTPD pr_regexp_alloc() API change after Bug #3609
- *   (will likely be in ProFTPD 1.3.4 release candidates and later).
- */
-
 /* $Libraries: -lcurl$ */
 #include <curl/curl.h>
 
 #include "conf.h"
 #include "privs.h"
 
-#define MOD_AUTH_WEB_VERSION  "mod_auth_web/1.1.1"
+#define MOD_AUTH_WEB_VERSION  "mod_auth_web/1.1.2"
 
 /* Config values */
 static char *local_user;
