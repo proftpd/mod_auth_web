@@ -44,7 +44,7 @@ static char *url, *user_param_name, *pass_param_name;
 static char *failed_string;
 static array_header *required_headers, *received_headers;
 
-static regex_t *user_creg;
+static pr_regex_t *user_creg;
 static char *response_data;
 
 module auth_web_module;
@@ -59,7 +59,7 @@ handle_auth_web_getpwnam(cmd_rec *cmd)
 		return DECLINED(cmd);
 	}
 	if (user_creg) {
-		if (regexec(user_creg, cmd->argv[0], 0, NULL, 0) != 0) {
+		if (pr_regexp_exec(user_creg, cmd->argv[0], 0, NULL, 0, 0, 0) != 0) {
 			pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": user doesn't match regex");
 			return DECLINED(cmd);
 		}
@@ -193,7 +193,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 		return DECLINED(cmd);
 	}
 	if (user_creg) {
-		if (regexec(user_creg, cmd->argv[0], 0, NULL, 0) != 0) {
+		if (pr_regexp_exec(user_creg, cmd->argv[0], 0, NULL, 0, 0, 0) != 0) {
 			pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": user doesn't match regex");
 			return DECLINED(cmd);
 		}
@@ -280,13 +280,13 @@ set_config_value(cmd_rec *cmd)
 MODRET
 set_user_regex(cmd_rec *cmd)
 {
-	regex_t *creg;
+	pr_regex_t *creg;
 
 	CHECK_ARGS(cmd, 1);
 	CHECK_CONF(cmd, CONF_ROOT | CONF_VIRTUAL | CONF_GLOBAL);
 
 	creg = pr_regexp_alloc(&auth_web_module);
-	if (regcomp(creg, cmd->argv[1], REG_ICASE | REG_EXTENDED | REG_NOSUB) != 0) {
+	if (pr_regexp_compile_posix(creg, cmd->argv[1], REG_ICASE | REG_EXTENDED | REG_NOSUB) != 0) {
 		CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, cmd->argv[0], ": unable to compile regex '", cmd->argv[1], "'"));
 	}
 	add_config_param(cmd->argv[0], 1, (void *) creg);
@@ -308,7 +308,7 @@ auth_web_getconf(void)
 		"AuthWebLoginFailedString", FALSE);
 	local_user = (char *) get_param_ptr(main_server->conf,
 		"AuthWebLocalUser", FALSE);
-	user_creg = (regex_t *) get_param_ptr(main_server->conf,
+	user_creg = (pr_regex_t *) get_param_ptr(main_server->conf,
 		"AuthWebUserRegex", FALSE);
 
 	if ((c = find_config(main_server->conf, CONF_PARAM, "AuthWebRequireHeader", FALSE)) != NULL) {
