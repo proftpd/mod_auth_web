@@ -1,6 +1,6 @@
 /*
  * mod_auth_web - URL-based authentication for ProFTPD
- * Copyright (c) 2006-7, 2011, John Morrissey <jwm@horde.net>
+ * Copyright (c) 2006-7, 2011, 2014, John Morrissey <jwm@horde.net>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -182,7 +182,8 @@ handle_auth_web_auth(cmd_rec *cmd)
 {
 	const char *username = cmd->argv[0];
 	const char *password = cmd->argv[1];
-	char *escaped_username, *escaped_password, *post_data;
+	char *escaped_username, *escaped_password, *post_data,
+		curl_error[CURL_ERROR_SIZE];
 	unsigned int post_data_len;
 	struct curl_slist *headers = NULL;
 	CURL *curl_handle;
@@ -204,6 +205,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 
 	curl_handle = curl_easy_init();
 	curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+	curl_easy_setopt(curl_handle, CURLOPT_ERRORBUFFER, curl_error);
 	curl_easy_setopt(curl_handle, CURLOPT_HEADERFUNCTION, get_response_headers);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, get_response_data);
 
@@ -228,10 +230,11 @@ handle_auth_web_auth(cmd_rec *cmd)
 
 	pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": calling URL %s with POST data %s", url, post_data);
 	success = curl_easy_perform(curl_handle);
-	if (success == 0) {
+	if (success == CURLE_OK) {
 		pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": URL call succeeded");
 	} else {
-		pr_log_pri(PR_LOG_ERR, MOD_AUTH_WEB_VERSION ": URL call failed");
+		pr_log_pri(PR_LOG_ERR, MOD_AUTH_WEB_VERSION ": URL call failed: %s",
+			curl_error);
 		return DECLINED(cmd);
 	}
 
