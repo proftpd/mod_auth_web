@@ -1,6 +1,6 @@
 /*
  * mod_auth_web - URL-based authentication for ProFTPD
- * Copyright (c) 2006-7, 2011, John Morrissey <jwm@horde.net>
+ * Copyright (c) 2006-7, 2011, 2014, John Morrissey <jwm@horde.net>
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -17,31 +17,13 @@
  * 51 Franklin Street, 5th Floor, Boston, MA 02110-1301, USA.
  */
 
-/* CHANGES:
- * v1.0 (17 Feb 2007):
- * - Initial release.
- *
- * v1.1 (9 June 2007):
- * - URL-encode usernames and passwords when submitting them to the remote
- *   web server, removing the character restrictions previously in place.
- *
- * v1.1.1 (17 Mar 2011):
- * - Sync with ProFTPD pr_regexp_alloc() API change after Bug #3609
- *   (will likely be in ProFTPD 1.3.4 release candidates and later).
- */
-
-#include <pwd.h>
-#include <regex.h>
-#include <stdio.h>
-#include <string.h>
-
 /* $Libraries: -lcurl$ */
 #include <curl/curl.h>
 
 #include "conf.h"
 #include "privs.h"
 
-#define MOD_AUTH_WEB_VERSION  "mod_auth_web/1.1.1"
+#define MOD_AUTH_WEB_VERSION  "mod_auth_web/1.1.2"
 
 /* Config values */
 static char *local_user;
@@ -49,7 +31,7 @@ static char *url, *user_param_name, *pass_param_name;
 static char *failed_string;
 static array_header *required_headers, *received_headers;
 
-static regex_t *user_creg;
+static pr_regex_t *user_creg;
 static char *response_data;
 
 module auth_web_module;
@@ -64,7 +46,7 @@ handle_auth_web_getpwnam(cmd_rec *cmd)
 		return DECLINED(cmd);
 	}
 	if (user_creg) {
-		if (regexec(user_creg, cmd->argv[0], 0, NULL, 0) != 0) {
+		if (pr_regexp_exec(user_creg, cmd->argv[0], 0, NULL, 0, 0, 0) != 0) {
 			pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": user doesn't match regex");
 			return DECLINED(cmd);
 		}
@@ -187,7 +169,8 @@ handle_auth_web_auth(cmd_rec *cmd)
 {
 	const char *username = cmd->argv[0];
 	const char *password = cmd->argv[1];
-	char *escaped_username, *escaped_password, *post_data;
+	char *escaped_username, *escaped_password, *post_data,
+		curl_error[CURL_ERROR_SIZE];
 	unsigned int post_data_len;
 	struct curl_slist *headers = NULL;
 	CURL *curl_handle;
@@ -198,7 +181,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 		return DECLINED(cmd);
 	}
 	if (user_creg) {
-		if (regexec(user_creg, cmd->argv[0], 0, NULL, 0) != 0) {
+		if (pr_regexp_exec(user_creg, cmd->argv[0], 0, NULL, 0, 0, 0) != 0) {
 			pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": user doesn't match regex");
 			return DECLINED(cmd);
 		}
@@ -209,6 +192,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 
 	curl_handle = curl_easy_init();
 	curl_easy_setopt(curl_handle, CURLOPT_URL, url);
+	curl_easy_setopt(curl_handle, CURLOPT_ERRORBUFFER, curl_error);
 	curl_easy_setopt(curl_handle, CURLOPT_HEADERFUNCTION, get_response_headers);
 	curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, get_response_data);
 
@@ -233,10 +217,11 @@ handle_auth_web_auth(cmd_rec *cmd)
 
 	pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": calling URL %s with POST data %s", url, post_data);
 	success = curl_easy_perform(curl_handle);
-	if (success == 0) {
+	if (success == CURLE_OK) {
 		pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": URL call succeeded");
 	} else {
-		pr_log_pri(PR_LOG_ERR, MOD_AUTH_WEB_VERSION ": URL call failed");
+		pr_log_pri(PR_LOG_ERR, MOD_AUTH_WEB_VERSION ": URL call failed: %s",
+			curl_error);
 		return DECLINED(cmd);
 	}
 
@@ -285,13 +270,13 @@ set_config_value(cmd_rec *cmd)
 MODRET
 set_user_regex(cmd_rec *cmd)
 {
-	regex_t *creg;
+	pr_regex_t *creg;
 
 	CHECK_ARGS(cmd, 1);
 	CHECK_CONF(cmd, CONF_ROOT | CONF_VIRTUAL | CONF_GLOBAL);
 
 	creg = pr_regexp_alloc(&auth_web_module);
-	if (regcomp(creg, cmd->argv[1], REG_ICASE | REG_EXTENDED | REG_NOSUB) != 0) {
+	if (pr_regexp_compile_posix(creg, cmd->argv[1], REG_ICASE | REG_EXTENDED | REG_NOSUB) != 0) {
 		CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, cmd->argv[0], ": unable to compile regex '", cmd->argv[1], "'"));
 	}
 	add_config_param(cmd->argv[0], 1, (void *) creg);
@@ -313,7 +298,7 @@ auth_web_getconf(void)
 		"AuthWebLoginFailedString", FALSE);
 	local_user = (char *) get_param_ptr(main_server->conf,
 		"AuthWebLocalUser", FALSE);
-	user_creg = (regex_t *) get_param_ptr(main_server->conf,
+	user_creg = (pr_regex_t *) get_param_ptr(main_server->conf,
 		"AuthWebUserRegex", FALSE);
 
 	if ((c = find_config(main_server->conf, CONF_PARAM, "AuthWebRequireHeader", FALSE)) != NULL) {
