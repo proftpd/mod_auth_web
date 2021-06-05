@@ -36,6 +36,9 @@ static char *response_data;
 
 module auth_web_module;
 
+static char *urlencode(pool *p, const char *str);
+
+
 MODRET
 handle_auth_web_getpwnam(cmd_rec *cmd)
 {
@@ -123,7 +126,7 @@ get_response_data(const void *buffer, const size_t size,
 	return size * nmemb;
 }
 
-char *
+static char *
 urlencode(pool *p, const char *str)
 {
 	char *escaped, *check, *track;
@@ -227,11 +230,12 @@ handle_auth_web_auth(cmd_rec *cmd)
 
 	if (failed_string && response_data && strstr(response_data, failed_string)) {
 		pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": found failed string '%s' in response", failed_string);
-		return ERROR_INT(cmd, PR_AUTH_BADPWD);
+		return PR_ERROR_INT(cmd, PR_AUTH_BADPWD);
 	}
 
 	if (required_headers != NULL) {
-		int i, j, found;
+		register unsigned int i, j;
+		int found;
 		char **required = (char **) required_headers->elts,
 		     **received = (char **) received_headers->elts;
 
@@ -248,7 +252,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 
 			if (!found) {
 				pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": couldn't find header '%s' in response", required[i]);
-				return ERROR_INT(cmd, PR_AUTH_BADPWD);
+				return PR_ERROR_INT(cmd, PR_AUTH_BADPWD);
 			}
 		}
 	}
@@ -277,7 +281,7 @@ set_user_regex(cmd_rec *cmd)
 
 	creg = pr_regexp_alloc(&auth_web_module);
 	if (pr_regexp_compile_posix(creg, cmd->argv[1], REG_ICASE | REG_EXTENDED | REG_NOSUB) != 0) {
-		CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, cmd->argv[0], ": unable to compile regex '", cmd->argv[1], "'"));
+		CONF_ERROR(cmd, pstrcat(cmd->tmp_pool, cmd->argv[0], ": unable to compile regex '", cmd->argv[1], "'", NULL));
 	}
 	add_config_param(cmd->argv[0], 1, (void *) creg);
 
