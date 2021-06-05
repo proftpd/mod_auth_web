@@ -1,9 +1,16 @@
-mod_auth_web is a ProFTPD module that authenticates users against a web URL,
+proftpd-mod_auth_web
+====================
+
+Status
+------
+[![GitHub Actions CI Status](https://github.com/proftpd/mod_auth_web/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/proftpd/mod_auth_web/actions/workflows/ci.yml)
+
+`mod_auth_web` is a ProFTPD module that authenticates users against a web URL,
 such as the login form for a remote web site. It is useful for
 authenticating users against a service that provides web access, but no
 programmatic means (such as an API) for authentication.
 
-mod_auth_web is no longer actively maintained. It works with the most recent
+`mod_auth_web` is no longer actively maintained. It works with the most recent
 ProFTPD release, but is not guaranteed to continue working with new ProFTPD
 releases.
 
@@ -11,7 +18,7 @@ releases.
 Installation
 ============
 
-You can add mod_auth_web to an existing ProFTPD installation by building it
+You can add `mod_auth_web` to an existing ProFTPD installation by building it
 as a DSO: http://www.proftpd.org/docs/howto/DSO.html
 
 
@@ -21,7 +28,7 @@ Sample Configuration
 This sample configuration illustrates authentication against Yahoo!. Users
 must log in via FTP as `yahoousername@yahoo.com` and will have the UID, GID,
 and home directory of the user named `example`.
-
+```
 	AuthWebUserRegex @yahoo.com$
 	AuthWebURL https://login.yahoo.com/config/login?
 	AuthWebUsernameParamName login
@@ -30,7 +37,7 @@ and home directory of the user named `example`.
 	AuthWebLoginFailedString "Invalid ID or password."
 	AuthWebRequireHeader "HTTP/1.1 302 Found"
 	AuthWebRequireHeader "Location: https://login.yahoo.com/config/verify?.done=http%3a//www.yahoo.com"
-
+```
 
 Directives
 ==========

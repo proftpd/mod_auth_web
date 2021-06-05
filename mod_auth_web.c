@@ -43,24 +43,24 @@ handle_auth_web_getpwnam(cmd_rec *cmd)
 
 	if (!url || !user_param_name || !pass_param_name || !local_user ||
 	    !(failed_string || required_headers)) {
-		return DECLINED(cmd);
+		return PR_DECLINED(cmd);
 	}
 	if (user_creg) {
 		if (pr_regexp_exec(user_creg, cmd->argv[0], 0, NULL, 0, 0, 0) != 0) {
 			pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": user doesn't match regex");
-			return DECLINED(cmd);
+			return PR_DECLINED(cmd);
 		}
 	}
 
 	pw = pcalloc(session.pool, sizeof(struct passwd));
 	if (!pw) {
-		return DECLINED(cmd);
+		return PR_DECLINED(cmd);
 	}
 
 	memcpy(pw, getpwnam(local_user), sizeof(struct passwd));
 	pw->pw_name = pstrdup(session.pool, cmd->argv[0]);
 	if (!pw->pw_name) {
-		return DECLINED(cmd);
+		return PR_DECLINED(cmd);
 	}
 	return mod_create_data(cmd, pw);
 }
@@ -178,12 +178,12 @@ handle_auth_web_auth(cmd_rec *cmd)
 
 	if (!url || !user_param_name || !pass_param_name || !local_user ||
 	    !(failed_string || required_headers)) {
-		return DECLINED(cmd);
+		return PR_DECLINED(cmd);
 	}
 	if (user_creg) {
 		if (pr_regexp_exec(user_creg, cmd->argv[0], 0, NULL, 0, 0, 0) != 0) {
 			pr_log_pri(PR_LOG_DEBUG, MOD_AUTH_WEB_VERSION ": user doesn't match regex");
-			return DECLINED(cmd);
+			return PR_DECLINED(cmd);
 		}
 	}
 
@@ -208,7 +208,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 		strlen(pass_param_name) + 1 + strlen(escaped_password) + 1;
 	post_data = pcalloc(session.pool, post_data_len);
 	if (!post_data) {
-		return DECLINED(cmd);
+		return PR_DECLINED(cmd);
 	}
 	snprintf(post_data, post_data_len, "%s=%s&%s=%s",
 		user_param_name, escaped_username,
@@ -222,7 +222,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 	} else {
 		pr_log_pri(PR_LOG_ERR, MOD_AUTH_WEB_VERSION ": URL call failed: %s",
 			curl_error);
-		return DECLINED(cmd);
+		return PR_DECLINED(cmd);
 	}
 
 	if (failed_string && response_data && strstr(response_data, failed_string)) {
@@ -254,7 +254,7 @@ handle_auth_web_auth(cmd_rec *cmd)
 	}
 
 	session.auth_mech = "mod_auth_web.c";
-	return HANDLED(cmd);
+	return PR_HANDLED(cmd);
 }
 
 MODRET
@@ -264,7 +264,7 @@ set_config_value(cmd_rec *cmd)
 	CHECK_CONF(cmd, CONF_ROOT | CONF_VIRTUAL | CONF_GLOBAL);
 
 	add_config_param_str(cmd->argv[0], 1, cmd->argv[1]);
-	return HANDLED(cmd);
+	return PR_HANDLED(cmd);
 }
 
 MODRET
@@ -281,7 +281,7 @@ set_user_regex(cmd_rec *cmd)
 	}
 	add_config_param(cmd->argv[0], 1, (void *) creg);
 
-	return HANDLED(cmd);
+	return PR_HANDLED(cmd);
 }
 
 static int
